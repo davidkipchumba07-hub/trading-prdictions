@@ -136,9 +136,9 @@ def api_backtest():
 
 
 import os
-@app.route('/')
+@app.route("/")
 def home():
-    return {"status": "success", "message": "Trading Predictions API is live!"}
+    return render_template("index.html")
 if __name__ == "__main__":
     # Use Render's dynamic port environment variable, or fallback to 5000 locally
     server_port = int(os.environ.get("PORT", 5000))
