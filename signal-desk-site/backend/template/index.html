@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Signal Desk — technical analysis terminal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root {
+    --bg: #0F1218;
+    --panel: #171B23;
+    --panel-2: #1D222C;
+    --border: rgba(255,255,255,0.08);
+    --text: #E7E9EE;
+    --text-dim: #8B93A1;
+    --text-faint: #565D6B;
+    --amber: #E8A33D;
+    --teal: #2FBF8F;
+    --coral: #E5484D;
+    --font-mono: 'IBM Plex Mono', monospace;
+    --font-sans: 'Inter', sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  .ticker {
+    background: var(--panel-2);
+    border-bottom: 1px solid var(--border);
+    overflow: hidden;
+    white-space: nowrap;
+    padding: 8px 0;
+  }
+  .ticker span {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-dim);
+    padding: 0 24px;
+    animation: scroll 28s linear infinite;
+  }
+  @keyframes scroll {
+    from { transform: translateX(100vw); }
+    to { transform: translateX(-100%); }
+  }
+  header {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 40px 24px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand-mark {
+    width: 28px; height: 28px;
+    border: 1.5px solid var(--amber);
+    border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-mono); font-size: 13px; color: var(--amber);
+  }
+  h1 { font-size: 20px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+  .sub { color: var(--text-dim); font-size: 13px; margin-top: 2px; }
+  .controls {
+    display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+  }
+  input, select, button {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 8px 12px;
+  }
+  input { width: 130px; }
+  button {
+    background: var(--amber);
+    color: #1A1206;
+    border: none;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s ease;
+  }
+  button:hover { opacity: 0.85; }
+  button.ghost {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-weight: 400;
+  }
+  main { max-width: 1100px; margin: 0 auto; padding: 0 24px 60px; }
+  .grid {
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  @media (max-width: 780px) { .grid { grid-template-columns: 1fr; } }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+  }
+  .panel-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-faint);
+    margin: 0 0 14px;
+  }
+  .signal-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .direction-badge {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    font-weight: 600;
+    padding: 5px 14px;
+    border-radius: 6px;
+  }
+  .dir-buy { background: rgba(47,191,143,0.15); color: var(--teal); }
+  .dir-sell { background: rgba(229,72,77,0.15); color: var(--coral); }
+  .dir-neutral { background: rgba(139,147,161,0.15); color: var(--text-dim); }
+  .conf-track { height: 6px; background: var(--panel-2); border-radius: 4px; overflow: hidden; margin-top: 8px; }
+  .conf-fill { height: 100%; border-radius: 4px; transition: width 0.4s ease; }
+  .kv { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 13px; padding: 6px 0; border-top: 1px solid var(--border); }
+  .kv:first-of-type { border-top: none; }
+  .kv .k { color: var(--text-dim); }
+  .reasons { list-style: none; padding: 0; margin: 14px 0 0; }
+  .reasons li {
+    font-size: 12.5px; color: var(--text-dim);
+    padding: 5px 0 5px 14px; position: relative;
+  }
+  .reasons li::before {
+    content: '›'; position: absolute; left: 0; color: var(--amber);
+  }
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0,1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  @media (max-width: 780px) { .stat-grid { grid-template-columns: repeat(2, 1fr); } }
+  .stat {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .stat .panel-label { margin-bottom: 8px; }
+  .stat-value { font-family: var(--font-mono); font-size: 22px; font-weight: 600; }
+  .chart-wrap { position: relative; height: 240px; }
+  .status-line {
+    font-family: var(--font-mono); font-size: 12px; color: var(--text-faint);
+    margin-top: 10px;
+  }
+  .disclaimer {
+    margin-top: 28px;
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 12.5px;
+    color: var(--text-faint);
+    line-height: 1.6;
+  }
+  .disclaimer b { color: var(--text-dim); }
+</style>
+</head>
+<body>
+
+<div class="ticker"><span id="ticker-text">Loading market data…</span></div>
+
+<header>
+  <div class="brand">
+    <div class="brand-mark">S</div>
+    <div>
+      <h1>Signal Desk</h1>
+      <p class="sub">Technical analysis terminal — forex &amp; binary-style signals</p>
+    </div>
+  </div>
+  <div class="controls">
+    <input id="symbol" type="text" placeholder="EURUSD=X" />
+    <select id="mode">
+      <option value="demo">Demo data</option>
+      <option value="live">Live (yfinance)</option>
+    </select>
+    <button id="run-btn">Run analysis</button>
+  </div>
+</header>
+
+<main>
+
+  <div class="grid">
+    <div class="panel">
+      <p class="panel-label">Latest signal</p>
+      <div class="signal-row">
+        <span id="direction-badge" class="direction-badge dir-neutral">—</span>
+        <span id="last-close" style="font-family: var(--font-mono); color: var(--text-dim); font-size: 13px;"></span>
+      </div>
+      <div>
+        <div style="display:flex; justify-content:space-between; font-family: var(--font-mono); font-size: 12px; color: var(--text-dim);">
+          <span>Confidence</span><span id="conf-value">—</span>
+        </div>
+        <div class="conf-track"><div id="conf-fill" class="conf-fill" style="width:0%; background: var(--text-dim);"></div></div>
+      </div>
+      <div style="margin-top:16px;">
+        <div class="kv"><span class="k">Entry</span><span id="v-entry">—</span></div>
+        <div class="kv"><span class="k">Stop loss</span><span id="v-stop">—</span></div>
+        <div class="kv"><span class="k">Take profit</span><span id="v-target">—</span></div>
+        <div class="kv"><span class="k">Binary call</span><span id="v-binary">—</span></div>
+      </div>
+      <ul id="reasons" class="reasons"></ul>
+    </div>
+
+    <div class="panel">
+      <p class="panel-label">Indicator readout</p>
+      <div class="kv"><span class="k">RSI (14)</span><span id="i-rsi">—</span></div>
+      <div class="kv"><span class="k">ADX (14) — trend strength</span><span id="i-adx">—</span></div>
+      <div class="kv"><span class="k">MACD histogram</span><span id="i-macd">—</span></div>
+      <div class="kv"><span class="k">SMA 20</span><span id="i-sma20">—</span></div>
+      <div class="kv"><span class="k">SMA 50</span><span id="i-sma50">—</span></div>
+      <p class="status-line" id="status-line">Not run yet.</p>
+    </div>
+  </div>
+
+  <div class="stat-grid">
+    <div class="stat"><p class="panel-label">Trades</p><p class="stat-value" id="s-trades">—</p></div>
+    <div class="stat"><p class="panel-label">Win rate</p><p class="stat-value" id="s-winrate">—</p></div>
+    <div class="stat"><p class="panel-label">Return</p><p class="stat-value" id="s-return">—</p></div>
+    <div class="stat"><p class="panel-label">Max drawdown</p><p class="stat-value" id="s-dd">—</p></div>
+  </div>
+
+  <div class="panel">
+    <p class="panel-label">Backtest equity curve</p>
+    <div class="chart-wrap"><canvas id="equityChart" role="img" aria-label="Line chart of backtest equity curve"></canvas></div>
+  </div>
+
+  <div class="disclaimer">
+    <b>Not financial advice.</b> Signal Desk is a technical-analysis tool, not a
+    profit guarantee. No indicator combination reliably predicts short-term
+    price moves. Backtest results reflect historical data only and do not
+    guarantee future performance. Binary options are banned or restricted for
+    retail traders in many jurisdictions (US, EU, UK, Australia) — check your
+    local regulations before using any broker. Only risk capital you can
+    afford to lose in full.
+  </div>
+
+</main>
+
+<script>
+  // Point this at your deployed backend, e.g. "https://api.yourdomain.com"
+  const API_BASE = window.SIGNAL_API_BASE || "http://localhost:5000";
+
+  const els = {
+    symbol: document.getElementById('symbol'),
+    mode: document.getElementById('mode'),
+    runBtn: document.getElementById('run-btn'),
+    directionBadge: document.getElementById('direction-badge'),
+    lastClose: document.getElementById('last-close'),
+    confValue: document.getElementById('conf-value'),
+    confFill: document.getElementById('conf-fill'),
+    entry: document.getElementById('v-entry'),
+    stop: document.getElementById('v-stop'),
+    target: document.getElementById('v-target'),
+    binary: document.getElementById('v-binary'),
+    reasons: document.getElementById('reasons'),
+    rsi: document.getElementById('i-rsi'),
+    adx: document.getElementById('i-adx'),
+    macd: document.getElementById('i-macd'),
+    sma20: document.getElementById('i-sma20'),
+    sma50: document.getElementById('i-sma50'),
+    statusLine: document.getElementById('status-line'),
+    sTrades: document.getElementById('s-trades'),
+    sWinrate: document.getElementById('s-winrate'),
+    sReturn: document.getElementById('s-return'),
+    sDd: document.getElementById('s-dd'),
+    ticker: document.getElementById('ticker-text'),
+  };
+
+  let chart = null;
+
+  function fmt(n, digits) {
+    if (n === null || n === undefined || Number.isNaN(n)) return '—';
+    return Number(n).toFixed(digits !== undefined ? digits : 5);
+  }
+
+  function directionClass(dir) {
+    if (dir === 'BUY') return 'dir-buy';
+    if (dir === 'SELL') return 'dir-sell';
+    return 'dir-neutral';
+  }
+
+  function fillColor(dir) {
+    if (dir === 'BUY') return 'var(--teal)';
+    if (dir === 'SELL') return 'var(--coral)';
+    return 'var(--text-dim)';
+  }
+
+  async function fetchJson(url) {
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Request failed');
+    return data;
+  }
+
+  function buildQuery(base) {
+    const demo = els.mode.value === 'demo';
+    const symbol = els.symbol.value.trim();
+    const params = new URLSearchParams();
+    if (demo) {
+      params.set('demo', 'true');
+    } else if (symbol) {
+      params.set('symbol', symbol);
+    } else {
+      params.set('demo', 'true'); // fall back to demo if live selected with no symbol
+    }
+    return `${base}?${params.toString()}`;
+  }
+
+  async function runAnalysis() {
+    els.statusLine.textContent = 'Loading…';
+    els.runBtn.disabled = true;
+    try {
+      const [signal, backtest] = await Promise.all([
+        fetchJson(buildQuery(`${API_BASE}/api/signal`)),
+        fetchJson(buildQuery(`${API_BASE}/api/backtest`)),
+      ]);
+      renderSignal(signal);
+      renderBacktest(backtest);
+      els.statusLine.textContent = `Updated · ${signal.symbol} · ${new Date().toLocaleTimeString()}`;
+      els.ticker.textContent =
+        `${signal.symbol}  ·  direction ${signal.direction}  ·  confidence ${signal.confidence}  ·  ` +
+        `RSI ${fmt(signal.indicators.rsi_14, 1)}  ·  ADX ${fmt(signal.indicators.adx_14, 1)}  ·  ` +
+        `backtest win rate ${backtest.win_rate}%  ·  return ${backtest.total_return_pct}%`;
+    } catch (err) {
+      els.statusLine.textContent = `Error: ${err.message}. Is the backend running at ${API_BASE}?`;
+    } finally {
+      els.runBtn.disabled = false;
+    }
+  }
+
+  function renderSignal(sig) {
+    els.directionBadge.textContent = sig.direction;
+    els.directionBadge.className = 'direction-badge ' + directionClass(sig.direction);
+    els.lastClose.textContent = 'last close ' + fmt(sig.last_close);
+    els.confValue.textContent = sig.confidence;
+    els.confFill.style.width = Math.min(sig.confidence, 100) + '%';
+    els.confFill.style.background = fillColor(sig.direction);
+    els.entry.textContent = fmt(sig.entry);
+    els.stop.textContent = fmt(sig.stop_loss);
+    els.target.textContent = fmt(sig.take_profit);
+    els.binary.textContent = sig.binary_call;
+    els.reasons.innerHTML = '';
+    sig.reasons.forEach(r => {
+      const li = document.createElement('li');
+      li.textContent = r;
+      els.reasons.appendChild(li);
+    });
+    els.rsi.textContent = fmt(sig.indicators.rsi_14, 1);
+    els.adx.textContent = fmt(sig.indicators.adx_14, 1);
+    els.macd.textContent = fmt(sig.indicators.macd_hist, 5);
+    els.sma20.textContent = fmt(sig.indicators.sma_20);
+    els.sma50.textContent = fmt(sig.indicators.sma_50);
+  }
+
+  function renderBacktest(bt) {
+    els.sTrades.textContent = bt.trades;
+    els.sWinrate.textContent = bt.win_rate + '%';
+    els.sReturn.textContent = bt.total_return_pct + '%';
+    els.sReturn.style.color = bt.total_return_pct >= 0 ? 'var(--teal)' : 'var(--coral)';
+    els.sDd.textContent = bt.max_drawdown_pct + '%';
+    els.sDd.style.color = 'var(--coral)';
+
+    const ctx = document.getElementById('equityChart');
+    const labels = bt.equity_curve.map((_, i) => i);
+    if (chart) chart.destroy();
+    chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          data: bt.equity_curve,
+          borderColor: '#E8A33D',
+          backgroundColor: 'rgba(232,163,61,0.08)',
+          fill: true,
+          pointRadius: 0,
+          borderWidth: 2,
+          tension: 0.2,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { display: false },
+          y: {
+            grid: { color: 'rgba(255,255,255,0.06)' },
+            ticks: { color: '#565D6B', font: { size: 11 } },
+          },
+        },
+      },
+    });
+  }
+
+  els.runBtn.addEventListener('click', runAnalysis);
+  els.symbol.addEventListener('keydown', e => { if (e.key === 'Enter') runAnalysis(); });
+
+  // Auto-run once on load using demo data
+  runAnalysis();
+</script>
+
+</body>
+</html>
